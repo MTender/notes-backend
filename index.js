@@ -1,6 +1,6 @@
-import express from "express";
-import cors from "cors";
-import Note from "./models/note.js";
+import express from 'express'
+import cors from 'cors'
+import Note from './models/note.js'
 
 const app = express()
 
