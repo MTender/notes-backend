@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import Note from "./models/note.js";
 
 const app = express()
 
@@ -30,27 +31,20 @@ app.get('/', (req, res) => {
 })
 
 app.get(notesPath, (req, res) => {
-    res.json(notes)
+    Note.find({}).then(notes => {
+        res.json(notes)
+    })
 })
 
-app.get(`${notesPath}/:id`, (req, res) => {
-    const id = Number(req.params.id)
-    const note = notes.find(note => note.id === id)
+app.get(`${notesPath}/:id`, (req, res, next) => {
+    Note.findById(req.params.id)
+        .then(note => {
+            if (!note) return res.status(404).end()
 
-    if (!note) {
-        return res.status(404).end()
-    }
-
-    res.json(note)
+            res.json(note)
+        })
+        .catch(error => next(error))
 })
-
-const generateId = () => {
-    const maxId = notes.length > 0
-        ? Math.max(...notes.map(n => n.id))
-        : 0
-
-    return maxId + 1;
-}
 
 app.post(notesPath, (req, res) => {
     const body = req.body
@@ -61,24 +55,56 @@ app.post(notesPath, (req, res) => {
         })
     }
 
-    const note = {
-        id: generateId(),
+    const note = new Note({
         content: body.content,
         important: body.important || false
+    })
+
+    note.save().then(savedNote => {
+        res.json(savedNote)
+    })
+})
+
+app.put('/api/notes/:id', (req, res, next) => {
+    const body = req.body
+
+    const note = {
+        content: body.content,
+        important: body.important,
     }
 
-    notes = notes.concat(note)
-
-    res.json(note)
+    Note.findByIdAndUpdate(req.params.id, note, {new: true})
+        .then(updatedNote => {
+            res.json(updatedNote)
+        })
+        .catch(error => next(error))
 })
 
-app.delete(`${notesPath}/:id`, (req, res) => {
-    const id = Number(req.params.id)
-    notes = notes.filter(note => note.id !== id)
-    res.status(204).end()
+app.delete(`${notesPath}/:id`, (req, res, next) => {
+    Note.findByIdAndDelete(req.params.id)
+        .then(() => {
+            res.status(204).end()
+        })
+        .catch(error => next(error))
 })
 
-const PORT = process.env.PORT || 3001
+const unknownEndpoint = (request, response) => {
+    response.status(404).end()
+}
+app.use(unknownEndpoint)
+
+const errorHandler = (error, req, res, next) => {
+    console.error(error.message)
+
+    if (error.name === 'CastError') {
+        return res.status(400).send({error: 'malformed id'})
+    }
+
+    next(error)
+}
+app.use(errorHandler)
+
+const PORT = process.env.PORT
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
